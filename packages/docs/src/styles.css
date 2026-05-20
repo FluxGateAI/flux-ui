@@ -1,0 +1,13 @@
+@import '@flux-ui/react/styles.css';
+
+/* Docs-only helpers (kept tiny — most styling comes from the library). */
+.docs-prose pre {
+  background-color: var(--muted);
+  color: var(--foreground);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}

@@ -1,0 +1,24 @@
+{
+  "name": "flux-ui-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "sample"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@flux-ui/react && npm run build --workspace=@flux-ui/docs && npm run build --workspace=@flux-ui/sample",
+    "dev:lib": "npm run dev --workspace=@flux-ui/react",
+    "dev:docs": "npm run dev --workspace=@flux-ui/docs",
+    "dev:sample": "npm run dev --workspace=@flux-ui/sample",
+    "test": "npm run test --workspace=@flux-ui/react",
+    "lint": "npm run lint --workspace=@flux-ui/react && npm run lint --workspace=@flux-ui/sample",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "typescript": "~5.9.3"
+  }
+}
