@@ -17,8 +17,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
-    "prettier": "^3.4.2",
-    "prettier-plugin-tailwindcss": "^0.7.2",
-    "typescript": "~5.9.3"
+    "prettier": "^3.9.5",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript": "~6.0.3"
   }
 }
