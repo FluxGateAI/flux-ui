@@ -27,7 +27,7 @@ This is an **npm workspaces** monorepo. From the repo root:
 
 ```bash
 npm install            # install deps for all three packages
-npm run test           # run the library's vitest suite (75 tests)
+npm run test           # run the library's vitest suite (95 tests)
 npm run dev:docs       # http://localhost:3100 — live API playground
 npm run dev:sample     # http://localhost:3000 — Ember (the demo site)
 npm run typecheck      # tsc across all workspaces
@@ -99,7 +99,7 @@ demonstration of the wizard pattern the library was designed for.
 
 ## Component inventory
 
-29 exports across 8 groups. See the docs app
+30 exports across 8 groups. See the docs app
 ([`npm run dev:docs`](./packages/docs)) for live examples + code snippets.
 
 | Group | Exports |

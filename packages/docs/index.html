@@ -11,9 +11,20 @@
     />
     <title>@flux-ui/react — examples</title>
     <script>
+      // Canonical copy: THEME_BOOTSTRAP_SCRIPT in @flux-ui/react. Keep in sync.
       ;(function () {
-        const theme = localStorage.getItem('theme') ?? 'dark'
-        if (theme === 'dark') document.documentElement.classList.add('dark')
+        var m = document.cookie.match(/(?:^|;\s*)flux-theme=([^;]*)/)
+        var t = m ? decodeURIComponent(m[1]) : null
+        if (t !== 'light' && t !== 'dark' && t !== 'system') {
+          try {
+            t = localStorage.getItem('theme')
+          } catch (e) {
+            t = null
+          }
+        }
+        if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'dark'
+        var dark = t === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : t === 'dark'
+        if (dark) document.documentElement.classList.add('dark')
       })()
     </script>
   </head>

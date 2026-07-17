@@ -7,7 +7,7 @@ library API, and where the seams are if you want to extend it.
 ## Current state, at a glance
 
 - **`packages/flux-ui/`** — `@flux-ui/react`, the publishable component
-  library. 29 exports, 75 vitest tests, no build step (ships TS source).
+  library. 30 exports, 95 vitest tests, no build step (ships TS source).
 - **`packages/docs/`** — a live API playground. Every component rendered
   with a side-by-side code snippet.
 - **`sample/`** — **Ember**, a fictional writing assistant. A complete
@@ -91,6 +91,7 @@ flux-ui/                         # repo root, npm workspaces
 │   │   │   ├── theme/
 │   │   │   │   ├── theme-context.ts   # context (split off so theme-provider.tsx exports only a component — react-refresh rule)
 │   │   │   │   ├── theme-provider.tsx # ThemeProvider
+│   │   │   │   ├── theme-storage.ts   # cookie read/write + THEME_BOOTSTRAP_SCRIPT
 │   │   │   │   └── use-theme.ts       # useTheme()
 │   │   │   ├── styles/
 │   │   │   │   ├── index.css    # @import barrel + @source directives
@@ -113,7 +114,7 @@ flux-ui/                         # repo root, npm workspaces
 │   │   │       └── require-auth.tsx     # provider-agnostic auth guard
 │   │   └── tests/
 │   │       ├── setup.ts         # jsdom + RTL bootstrapping
-│   │       └── *.test.{ts,tsx}  # 23 files, 75 tests
+│   │       └── *.test.{ts,tsx}  # 24 files, 95 tests
 │   │
 │   └── docs/                    # live examples app
 │       ├── package.json
@@ -300,6 +301,46 @@ opt-in. `SiteShell` reads from `useTheme()` to wire the toggle, but renders
 fine without a provider (it just won't have an active toggle). No
 QueryClient, no router context, no Clerk dependency.
 
+The one piece of state it does own is the persisted theme, which lives in a
+**cookie** (`flux-theme`), not localStorage — see decision #3a.
+
+### 3a. Theme persistence: cookie first, localStorage as a mirror
+
+We run several properties under `*.fluxgate.ai`, and localStorage is
+origin-scoped, so a choice made on `fluxgate.ai` never reached
+`internal.fluxgate.ai`. A cookie scoped to the parent domain is sent to every
+subdomain, so `ThemeProvider` reads and writes `flux-theme` and takes an
+optional `cookieDomain` (e.g. `.fluxgate.ai`). Omitted, the cookie is
+host-only — which is what localhost and single-origin deploys want.
+
+Four things here are load-bearing and easy to undo by accident:
+
+- **Read order is cookie → localStorage → `defaultTheme`.** The localStorage
+  step is a one-time migration for pre-cookie users; when it hits, the cookie
+  is written immediately.
+- **`setTheme` writes both.** The cookie is what's read and what crosses
+  subdomains. The localStorage write exists *only* because cookies emit no
+  change event — the `storage` listener keyed on `storageKey` is what keeps
+  multi-tab sync working. Drop either half and cross-tab silently regresses.
+- **`'system'` is persisted verbatim**, never resolved to light/dark before
+  storing. Resolving would freeze a user's "follow my OS" choice into whatever
+  it happened to mean on the site that wrote it.
+- **The cookie domain is never inferred from `location.hostname`.** Finding
+  the registrable domain correctly needs the Public Suffix List; a naive "last
+  two labels" heuristic breaks on `foo.co.uk`. The caller is explicit.
+
+Out of scope: sharing across a *different* registrable domain. Cookies can't
+span an eTLD+1 and we're not building an iframe bridge — that's a per-consumer
+URL-param handoff.
+
+Because the `.dark` class is applied from a `useEffect` (after first paint),
+consumers also need a blocking `<head>` script. `THEME_BOOTSTRAP_SCRIPT` is
+the canonical body; it can't be imported (it must run before the bundle), so
+`sample/index.html` and `packages/docs/index.html` paste it inline and
+`tests/theme-storage.test.ts` asserts the copies haven't drifted. Both inline
+scripts previously tested `=== 'dark'` on the raw string, so `'system'` users
+on a dark OS got a light flash — the constant resolves through `matchMedia`.
+
 ### 4. Provider-agnostic auth
 
 `RequireAuth` takes `isLoaded`, `isSignedIn`, and a `redirect` callback. The
@@ -324,7 +365,7 @@ HTML page can skip the prop entirely.
 ### 6. Tests run against source, not a build
 
 Vitest + RTL + jsdom. Setup file mocks `matchMedia` and `ResizeObserver` (radix
-needs them). 75 tests across 23 files cover every exported component plus the
+needs them). 95 tests across 24 files cover every exported component plus the
 two lib utilities. The full suite runs in ~2.5 seconds.
 
 The test files use the `@/*` path alias internally (configured in
@@ -371,7 +412,7 @@ After Phase 1 (library extracted, ResuMaker rewired to consume it):
 @flux-ui/react source:         ~2,911 lines (29 exports, ~1,800 new — covers
                                 more components than the original sample had,
                                 because we added the missing primitives)
-@flux-ui/react tests:          23 files, 75 tests, all passing
+@flux-ui/react tests:          24 files, 95 tests, all passing
 
 sample/src/components/         — 3 wrapper files, 212 lines (ResuMaker era)
 sample/src/index.css           — 1 line

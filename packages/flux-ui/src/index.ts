@@ -7,6 +7,7 @@ export { ThemeProvider } from './theme/theme-provider'
 export { ThemeContext } from './theme/theme-context'
 export type { Theme, ResolvedTheme } from './theme/theme-context'
 export { useTheme } from './theme/use-theme'
+export { THEME_BOOTSTRAP_SCRIPT } from './theme/theme-storage'
 
 // ── Primitives (shadcn-style) ──────────────────────────────────────────────
 export { Button, buttonVariants } from './components/ui/button'

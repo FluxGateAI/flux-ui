@@ -44,18 +44,83 @@ finer-grained imports:
 ## Theming
 
 Wrap your app in `ThemeProvider`. The provider mounts the `.dark` class on
-`<html>`, persists the user choice to `localStorage`, and respects the
+`<html>`, persists the user choice to a cookie, and respects the
 `prefers-color-scheme` media query when `theme === 'system'`.
 
 ```tsx
 import { ThemeProvider } from '@flux-ui/react'
 
 createRoot(document.getElementById('root')!).render(
-  <ThemeProvider defaultTheme="dark" storageKey="theme">
+  <ThemeProvider defaultTheme="dark">
     <App />
   </ThemeProvider>,
 )
 ```
+
+| Prop | Default | Notes |
+| ---- | ------- | ----- |
+| `defaultTheme` | `'dark'` | Used when nothing is persisted yet. |
+| `cookieName` | `'flux-theme'` | Where the choice is read from and written to. Don't override it if you share a theme between properties — the name has to match on all of them. |
+| `cookieDomain` | — | Set to a parent domain (e.g. `.fluxgate.ai`) to share across subdomains. Omit for a host-only cookie. |
+| `storageKey` | `'theme'` | localStorage mirror. Read once to migrate pre-cookie users, and written on every change so the `storage` event can sync other tabs — cookies fire no such event. |
+
+### Sharing one theme across subdomains
+
+localStorage is origin-scoped, so a choice made on `fluxgate.ai` doesn't reach
+`internal.fluxgate.ai`. A cookie scoped to the parent domain does. Pass
+`cookieDomain` on every property under that domain:
+
+```tsx
+<ThemeProvider cookieDomain=".fluxgate.ai">
+  <App />
+</ThemeProvider>
+```
+
+Now `fluxgate.ai`, `internal.fluxgate.ai`, and `docs.fluxgate.ai` share one
+choice. Two caveats:
+
+- **The domain is never inferred.** Deriving a registrable domain from
+  `location.hostname` needs the Public Suffix List — a "last two labels"
+  guess breaks on `foo.co.uk`. So you pass it explicitly, and you omit it in
+  environments where it doesn't apply (localhost, preview deploys), where it
+  falls back to a host-only cookie.
+- **Cookies can't cross a registrable domain.** Sharing with a property on a
+  different eTLD+1 needs a URL-param handoff; this API won't do it.
+
+### Preventing a flash of the wrong theme
+
+The `.dark` class is applied from an effect — i.e. after first paint — so
+without a blocking `<head>` script every load flashes the wrong scheme.
+`THEME_BOOTSTRAP_SCRIPT` is the canonical script body: it reads the cookie
+(falling back to localStorage for not-yet-migrated users, then `'dark'`) and
+resolves `'system'` through `matchMedia` before React mounts.
+
+It **cannot be imported** into your `index.html` — it has to run before the
+bundle loads, so paste the body inline:
+
+```html
+<script>
+  ;(function () {
+    var m = document.cookie.match(/(?:^|;\s*)flux-theme=([^;]*)/)
+    var t = m ? decodeURIComponent(m[1]) : null
+    if (t !== 'light' && t !== 'dark' && t !== 'system') {
+      try {
+        t = localStorage.getItem('theme')
+      } catch (e) {
+        t = null
+      }
+    }
+    if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'dark'
+    var dark = t === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : t === 'dark'
+    if (dark) document.documentElement.classList.add('dark')
+  })()
+</script>
+```
+
+The export exists so there's one copy to paste from and to assert against in
+tests — see `tests/theme-storage.test.ts`, which fails if `sample/index.html`
+or `packages/docs/index.html` drifts from it. Reading needs no domain (cookies
+are sent to subdomains by name), so the same snippet works on every property.
 
 Want a different palette? Override the OKLCH custom properties after importing
 the library stylesheet:
@@ -93,7 +158,8 @@ Every component is rendered live with an editable code sample in the docs app
 | `SiteShell` | Full page chrome: grain overlay, ambient glow, nav, mobile drawer, footer. Brand, nav links, footer links, auth slot, theme toggle all configurable. Pass `LinkComponent` (e.g. react-router's `Link`) for internal routing. |
 | `PageHeader` | Display heading + decorative rule + subtitle. `size: 'md' \| 'lg'`. |
 | `ThemeToggle` | Pre-styled toggle button. Pairs with `ThemeProvider`. |
-| `ThemeProvider`, `useTheme` | Light/dark/system state with `localStorage` persistence. |
+| `ThemeProvider`, `useTheme` | Light/dark/system state persisted to a cookie. Set `cookieDomain` to share across subdomains. |
+| `THEME_BOOTSTRAP_SCRIPT` | FOUC-prevention script body to paste inline into `<head>`. See [Theming](#theming). |
 
 ### SEO
 

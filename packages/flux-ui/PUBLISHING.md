@@ -58,7 +58,7 @@ Then:
    npm install                    # ensure lockfile is current
    npm run typecheck              # tsc across all workspaces
    npm run lint                   # eslint library + sample
-   npm run test                   # 75 vitest tests in the library
+   npm run test                   # 95 vitest tests in the library
    npm run build                  # docs SPA + sample SPA both compile
    ```
 
@@ -141,6 +141,43 @@ Then:
 While we're on `0.x` everything is technically "minor" per semver, but treat
 prop renames as majors anyway so consumers can rely on cleanly bumping a
 minor.
+
+### Worked example: 0.2.0 — theme persistence moves to a cookie
+
+A useful precedent for classifying a change whose *behaviour* moves but whose
+*API* only grows. `ThemeProvider` switched from persisting to `localStorage`
+to persisting to a `flux-theme` cookie, so one theme choice can follow a user
+across `*.fluxgate.ai` subdomains.
+
+**Minor**, not major, because:
+
+- The public surface only *gains* optional props (`cookieName`,
+  `cookieDomain`) and one new export (`THEME_BOOTSTRAP_SCRIPT`). Nothing was
+  renamed or removed; `storageKey` still works.
+- The default is a **host-only** cookie, so a consumer who changes nothing
+  gets the same single-origin behaviour they had.
+- Existing users don't lose their choice — the provider reads the old
+  localStorage value once and migrates it to the cookie.
+
+Call out in the release notes:
+
+- **Storage moved from `localStorage` to the `flux-theme` cookie.** Migration
+  is automatic and one-time; no consumer action is needed. Anything that read
+  `localStorage.getItem('theme')` directly should read the cookie instead —
+  localStorage is still written, but only as a mirror to drive cross-tab
+  `storage` events, and it is no longer the source of truth.
+- **To share a theme across subdomains**, pass `cookieDomain=".example.com"`
+  on every property. The domain is deliberately not inferred; omit it for
+  host-only.
+- **Update your inline FOUC script** to the current
+  `THEME_BOOTSTRAP_SCRIPT` body (see the README). The old snippet reads
+  localStorage and mishandles `'system'`. Consumers who skip this keep
+  working, but users who picked `'system'` on a dark-mode OS will flash light
+  on load, and a choice made on another subdomain won't apply until React
+  mounts.
+- **Cookie caveat**: the theme is now sent on every request to the domain.
+  That's ~16 bytes, and it means a CDN caching HTML by URL alone can serve a
+  page with the wrong bootstrap class — vary on the cookie if you pre-render.
 
 ## What ships in the tarball
 

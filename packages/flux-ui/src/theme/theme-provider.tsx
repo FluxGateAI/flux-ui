@@ -1,20 +1,32 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { ThemeContext, type ResolvedTheme, type Theme } from './theme-context'
+import { readThemeCookie, writeThemeCookie, THEME_COOKIE_NAME } from './theme-storage'
 
 interface ThemeProviderProps {
   children: ReactNode
   /** Initial theme when no value is persisted yet. Defaults to 'dark'. */
   defaultTheme?: Theme
-  /** localStorage key. Defaults to 'theme'. */
+  /**
+   * localStorage key. Defaults to 'theme'. The cookie is the source of truth;
+   * this key is still read once to migrate pre-cookie users, still written on
+   * every change, and drives cross-tab sync via the `storage` event.
+   */
   storageKey?: string
+  /** Cookie name. Defaults to 'flux-theme'. */
+  cookieName?: string
+  /**
+   * Cookie domain, e.g. '.fluxgate.ai', to share the theme across subdomains.
+   * Omit for a host-only cookie.
+   */
+  cookieDomain?: string
 }
 
-function readStored(storageKey: string, fallback: Theme): Theme {
-  if (typeof window === 'undefined') return fallback
+function readLocalStorage(storageKey: string): Theme | null {
+  if (typeof window === 'undefined') return null
   const stored = window.localStorage.getItem(storageKey)
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
-  return fallback
+  return null
 }
 
 function systemPrefersDark(): boolean {
@@ -31,8 +43,20 @@ export function ThemeProvider({
   children,
   defaultTheme = 'dark',
   storageKey = 'theme',
+  cookieName = THEME_COOKIE_NAME,
+  cookieDomain,
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => readStored(storageKey, defaultTheme))
+  // Read order: cookie → localStorage (one-time migration) → defaultTheme.
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const fromCookie = readThemeCookie(cookieName)
+    if (fromCookie) return fromCookie
+    const fromStorage = readLocalStorage(storageKey)
+    if (fromStorage) {
+      writeThemeCookie(cookieName, fromStorage, cookieDomain)
+      return fromStorage
+    }
+    return defaultTheme
+  })
   const [systemDark, setSystemDark] = useState<boolean>(() => systemPrefersDark())
 
   // Track system preference changes only while `theme === 'system'`.
@@ -51,14 +75,30 @@ export function ThemeProvider({
     applyClass(resolvedTheme)
   }, [resolvedTheme])
 
+  // Cookies emit no change event, so cross-tab sync rides on the localStorage
+  // mirror written by setTheme.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey) return
+      const next = e.newValue
+      if (next === 'light' || next === 'dark' || next === 'system') setThemeState(next)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [storageKey])
+
   const setTheme = useCallback(
     (next: Theme) => {
       setThemeState(next)
+      // 'system' is stored verbatim — resolving it here would freeze the
+      // user's "follow my OS" choice into whatever it meant on this site.
+      writeThemeCookie(cookieName, next, cookieDomain)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(storageKey, next)
       }
     },
-    [storageKey],
+    [storageKey, cookieName, cookieDomain],
   )
 
   const toggleTheme = useCallback(() => {
