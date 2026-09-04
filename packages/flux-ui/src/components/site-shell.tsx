@@ -344,7 +344,10 @@ export function SiteShell({
   return (
     <div
       className={cn(
-        'relative flex min-h-screen flex-col overflow-hidden font-sans leading-[1.6]',
+        // overflow-clip (not -hidden): clips the grain/glow decor layers
+        // identically but creates no scroll container, so position:sticky
+        // inside consumer pages tracks the viewport scroll.
+        'relative flex min-h-screen flex-col overflow-clip font-sans leading-[1.6]',
         className,
       )}
     >
